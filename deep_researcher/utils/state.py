@@ -1,6 +1,6 @@
 import operator
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Literal
 from typing_extensions import Annotated, TypedDict
 
 
@@ -35,8 +35,8 @@ class WrittenSection(BaseModel):
     content: str = Field(
         description="Content of the section",
     )
-    sources: str = Field(
-        description="Source urls of the section",
+    sources: List[str] = Field(
+        description="Source urls of the section.",
     )
 
 

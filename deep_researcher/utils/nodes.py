@@ -163,23 +163,51 @@ def section_writer(state: ResearcherState):
 # Nodes for Orchestrator Graph
 def generate_plan(state: OrchestratorState):
     """Generate an outline for the report."""
-    print("Generating plan using deepseek")
+    # print("Generating plan using deepseek")
     planner_llm = init_chat_model(
         model="groq:deepseek-r1-distill-qwen-32b",
         temperature=0.2,
         max_tokens=2048,
         max_retries=3
     )
+    if "feedback_on_report_plan" in state:
+        system_message = SystemMessage(content="You are a research assistant. You will be given a main topic, an outline, previously generated plan and human feedback. You will generate an updated plan considering the feedback. The plan must have sections and an overview for every section. Overview should cover the main points of the section.")
+        human_message = HumanMessage(
+            content=f"Main Topic: {state['main_topic']}\n Outline: {state['outline']}\n Previous Plan: {state['plan_in_text']}\n Feedback: {state['feedback_on_report_plan']}")
+    else:
+        system_message = SystemMessage(
+            content="You are a research assistant. You will be given a main topic and an outline. You will generate a plan for a report. The plan must have sections and an overview for every section. Overview should cover the main topics and points of the section.")
+        human_message = HumanMessage(
+            content=f"Main Topic: {state['main_topic']}\n Outline: {state['outline']}")
+
     out = planner_llm.invoke(
-        [
-            SystemMessage(content="You are a research assistant. You will be given a main topic and an outline. You will generate a plan for a report. The plan must have sections and an overview for every section. Overview should cover the main topics and points of the section."),
-            HumanMessage(
-                content=f"Main Topic: {state['main_topic']}\n Outline: {state['outline']}"),
-        ]
+        [system_message, human_message]
     )
     return {
-        "plan_in_text": out
+        "plan_in_text": out.content.split("</think>")[-1].strip()
     }
+
+
+def human_feedback_on_plan(state: OrchestratorState):
+    """Get human feedback on the plan."""
+    feedback = interrupt(
+        f"Please provide feedback on the plan: \n\n{state['plan_in_text']}\n\n Input 'Accept' to approve the plan or provide feedback to regenerate the plan:",
+    )
+    print(f"\n\nFeedback on the plan: {feedback}")
+    print(type(feedback))
+    print("\n\n")
+    return {
+        "feedback_on_report_plan": feedback
+    }
+
+
+def check_human_feedback_router(state: OrchestratorState):
+    """Check if the human feedback is
+    'Accept' or not."""
+    if state["feedback_on_report_plan"].strip().lower() == "accept":
+        return "plan_accepted"
+    else:
+        return "plan_rejected"
 
 
 def generate_plan_schema(state: OrchestratorState):
@@ -193,14 +221,14 @@ def generate_plan_schema(state: OrchestratorState):
     structured_plan = structured_planner.invoke(
         [
             SystemMessage(
-                content="You are a research assistant. You will be given a plan for a report. You will extract the schema out of the plan."),
+                content="You are a research assistant. You will be given a plan for a report. You will extract the schema out of the plan. The plan must have sections, an overview and whether web search is required or not for each section. Sections which are about conclusion or references do not require web search.Also keep the section names as provided do not change them."),
             HumanMessage(content=f"Plan: {state['plan_in_text']}"),
         ]
     )
-    print("The structured plan is :\n:")
-    for section in structured_plan.sections:
-        print(
-            f"Section: {section.title}\nOverview: {section.overview}\nWeb Search Required: {section.web_search_required}\n\n")
+    # print("The structured plan is :\n:")
+    # for section in structured_plan.sections:
+    #     print(
+    #         f"Section: {section.title}\nOverview: {section.overview}\nWeb Search Required: {section.web_search_required}\n\n")
     return {
         "structured_plan": structured_plan.sections
     }
@@ -293,14 +321,17 @@ def write_final_report(state: OrchestratorState):
     for section in state["structured_plan"]:
         final_report += f"Section: {section.title}\nContent: {compiled_sections[section.title]}\n\n"
 
-    all_sources = set(
+    all_sources = list(set(
         [
             source
             for section in state["compiled_sections"]
             for source in section.sources
         ]
-    )
-    final_report += f"\n\nSources:\n {all_sources}"
+    ))
+    sources_string = ""
+    for idx, source in enumerate(all_sources):
+        sources_string += f"{idx + 1}. {source}\n"
+    final_report += f"\n\nSources:\n {sources_string}"
 
     return {
         "final_report": final_report

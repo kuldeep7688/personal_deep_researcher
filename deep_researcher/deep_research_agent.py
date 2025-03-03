@@ -6,7 +6,10 @@ from deep_researcher.utils.nodes import (
     generate_plan, generate_plan_schema,
     web_search_required_routing,
     assign_no_web_search_writing_workers, assign_web_search_writing_workers,
-    combine_written_sections, write_final_report, write_sections_without_search
+    combine_written_sections, write_final_report,
+    write_sections_without_search,
+    human_feedback_on_plan,
+    check_human_feedback_router
 )
 from deep_researcher.utils.state import (
     SearchGraphState, SearchGraphOutputState,
@@ -52,13 +55,10 @@ graph_builder.add_node("generate_plan_schema", generate_plan_schema)
 graph_builder.add_node(
     "write_sections_with_search", researcher_graph_builder.compile()
 )
+graph_builder.add_node("human_feedback_on_plan", human_feedback_on_plan)
 graph_builder.add_node(
     "assign_web_search_writing_workers", assign_web_search_writing_workers
 )
-# graph_builder.add_node(
-#     "assign_no_web_search_writing_workers",
-#     assign_no_web_search_writing_workers
-# )
 graph_builder.add_node("combine_written_sections", combine_written_sections)
 graph_builder.add_node(
     "write_sections_without_search", write_sections_without_search
@@ -66,14 +66,14 @@ graph_builder.add_node(
 graph_builder.add_node("write_final_report", write_final_report)
 
 graph_builder.add_edge(START, "generate_plan")
-graph_builder.add_edge("generate_plan", "generate_plan_schema")
-# graph_builder.add_conditional_edges(
-#     "generate_plan_schema", assign_web_search_writing_workers,
-#     ["write_sections_with_search"]
-# )
-# graph_builder.add_edge(
-#     "generate_plan_schema", "assign_web_search_writing_workers"
-# )
+graph_builder.add_edge("generate_plan", "human_feedback_on_plan")
+graph_builder.add_conditional_edges(
+    "human_feedback_on_plan", check_human_feedback_router, {
+        "plan_accepted": "generate_plan_schema",
+        "plan_rejected": "generate_plan"
+    }
+)
+# graph_builder.add_edge("generate_plan", "generate_plan_schema")
 graph_builder.add_conditional_edges(
     "generate_plan_schema", web_search_required_routing, {
         "web_search_required": "assign_web_search_writing_workers",
