@@ -1,5 +1,6 @@
 # general imports
 # import os
+from typing import Literal
 
 # langchain imports
 from langchain.chat_models import init_chat_model
@@ -8,7 +9,7 @@ from langchain_core.messages import (
     HumanMessage,
 )
 from langgraph.constants import Send
-# from langgraph.types import interrupt
+from langgraph.types import interrupt, Command
 
 # state imports
 from deep_researcher.utils.state import (
@@ -29,11 +30,11 @@ from deep_researcher.utils.tools import (
 def create_search_query(state: SearchGraphState):
     """Create a search query for the topic."""
     llm_search_with_tools = init_chat_model(
-        model="gpt-40-mini",
+        model="openai:gpt-4o-mini",
         temperature=0,
-        max_tokens=500
+        # max_tokens=500
     ).bind_tools(
-        search_wikipedia, search_tavily, search_arxiv
+        [search_wikipedia, search_tavily, search_arxiv]
     )
     out = llm_search_with_tools.invoke(
         [
@@ -125,12 +126,16 @@ def get_important_topics(state: ResearcherState):
     }
 
 
-def assign_search_workers(state: ResearcherState):
+def assign_search_workers(state: ResearcherState) -> Command[Literal["execute_search_graph"]]:
     """Assign search workers to the topics."""
     print("\n\nAssigning search workers to the topics.\n\n")
-    return [
-        Send("execute_search_graph", {"topic": topic, "of_section": state["section"]}) for topic in state["topics_of_section"]
-    ]
+    return Command(
+        goto=[Send("execute_search_graph", {
+            "topic": topic,
+            "of_section": state["section"]
+        }) for topic in state["topics_of_section"]
+        ]
+    )
 
 
 def section_writer(state: ResearcherState):
@@ -210,10 +215,10 @@ def web_search_required_routing(state: OrchestratorState):
     return "no_web_search_required"
 
 
-def assign_web_search_writing_workers(state: OrchestratorState):
+def assign_web_search_writing_workers(state: OrchestratorState) -> Command[Literal["write_sections_with_search"]]:
     """Assign search workers to the topics."""
     print("\n\n Assigning writing workers to the sections which require web search.\n\n")
-    return [
+    return Command(goto=[
         Send(
             "write_sections_with_search",
             {
@@ -224,7 +229,7 @@ def assign_web_search_writing_workers(state: OrchestratorState):
         )
         for section in state["structured_plan"]
         if section.web_search_required is True
-    ]
+    ])
 
 
 def combine_written_sections(state: OrchestratorState):
@@ -280,10 +285,22 @@ def write_sections_without_search(state: ResearcherState):
 
 def write_final_report(state: OrchestratorState):
     """Write the final report."""
-    print("\n\n Writing the final report.\n\n")
+    compiled_sections = {
+        s.title: s.content
+        for s in state["compiled_sections"]
+    }
     final_report = ""
-    for section in state["compiled_sections"]:
-        final_report += f"Section: {section.title}\nContent: {section.content}\nSources: {section.sources}\n\n"
+    for section in state["structured_plan"]:
+        final_report += f"Section: {section.title}\nContent: {compiled_sections[section.title]}\n\n"
+
+    all_sources = set(
+        [
+            source
+            for section in state["compiled_sections"]
+            for source in section.sources
+        ]
+    )
+    final_report += f"\n\nSources:\n {all_sources}"
 
     return {
         "final_report": final_report

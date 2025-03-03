@@ -17,6 +17,7 @@ search_graph_builder.add_node("call_search_tools", call_search_tools)
 
 search_graph_builder.add_edge(START, "create_search_query")
 search_graph_builder.add_edge("create_search_query", "call_search_tools")
+search_graph_builder.add_edge("call_search_tools", END)
 
 
 # create researcher_graph
@@ -25,15 +26,17 @@ researcher_graph_builder = StateGraph(
 )
 researcher_graph_builder.add_node("get_important_topics", get_important_topics)
 researcher_graph_builder.add_node(
-    "execute_search_graph", search_graph_builder.complile()
+    "execute_search_graph", search_graph_builder.compile()
+)
+researcher_graph_builder.add_node(
+    "assign_search_workers", assign_search_workers
 )
 researcher_graph_builder.add_node("section_writer", section_writer)
 
 researcher_graph_builder.add_edge(START, "get_important_topics")
-researcher_graph_builder.add_conditional_edges(
-    get_important_topics, assign_search_workers,
-    ["execute_search_graph"]
+researcher_graph_builder.add_edge(
+    "get_important_topics", "assign_search_workers"
 )
 researcher_graph_builder.add_edge("execute_search_graph", "section_writer")
 researcher_graph_builder.add_edge("section_writer", END)
-reasearcher_graph = researcher_graph_builder.compile()
+researcher_graph = researcher_graph_builder.compile()

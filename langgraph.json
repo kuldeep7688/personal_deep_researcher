@@ -1,7 +1,7 @@
 {
     "dockerfile_lines": [],
     "graphs": {
-        "system_design_interviewer": "./deep_researcher/deep_research_agent.py:graph",
+        "deep_research_graph": "./deep_researcher/deep_research_agent.py:graph",
         "search_graph": "./deep_researcher/search_graph.py:search_graph",
         "researcher_graph": "./deep_researcher/researcher_graph.py:researcher_graph"
     },
